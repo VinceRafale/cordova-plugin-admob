@@ -1,22 +1,20 @@
-package org.apache.cordova.plugin;
+package com.rjfun.cordova.plugin;
 
-import com.google.ads.Ad;
-import com.google.ads.AdListener;
-import com.google.ads.AdRequest;
-import com.google.ads.AdRequest.ErrorCode;
-import com.google.ads.AdSize;
-import com.google.ads.AdView;
-import com.google.ads.mediation.admob.AdMobAdapterExtras;
+import com.google.android.gms.ads.*;
+import com.google.android.gms.ads.AdRequest.Builder;
+import com.google.android.gms.ads.mediation.admob.AdMobExtras;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.LinearLayoutSoftKeyboardDetect;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.PluginResult;
 import org.apache.cordova.PluginResult.Status;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 
@@ -221,8 +219,22 @@ public class AdMob extends CordovaPlugin {
       if (adSize == null) {
         result = new PluginResult(Status.ERROR, "AdSize is null. Did you use an AdSize constant?");
       } else {
-        adView = new AdView(cordova.getActivity(), adSize, publisherId);
-        adView.setAdListener(new BannerListener());
+        adView = new AdView(cordova.getActivity());
+        adView.setAdUnitId(publisherId);
+        adView.setAdSize(adSize);
+              
+        adView.setAdListener(new AdListener(){
+        	public void onAdLoaded() {
+        	      webView.loadUrl("javascript:cordova.fireDocumentEvent('onReceiveAd');");
+        	}
+        	
+        	public void onAdFailedLoad(int errorCode) {
+        	    webView.loadUrl(String.format(
+        	          "javascript:cordova.fireDocumentEvent('onFailedToReceiveAd', { 'error': '%s' });",
+        	          errorCode));
+        	} 
+        });
+        
         LinearLayoutSoftKeyboardDetect parentView =
             (LinearLayoutSoftKeyboardDetect) webView.getParent();
         if (bannerAtTop) {
@@ -276,21 +288,24 @@ public class AdMob extends CordovaPlugin {
       if (adView == null) {
         result = new PluginResult(Status.ERROR, "AdView is null.  Did you call createBannerView?");
       } else {
-        AdRequest request = new AdRequest();
+    	  Builder AdBuilder = null;
         if (isTesting) {
           // This will request test ads on the emulator only.  You can get your
           // hashed device ID from LogCat when making a live request.  Pass
           // this hashed device ID to addTestDevice request test ads on your
           // device.
-          request.addTestDevice(AdRequest.TEST_EMULATOR);
+        	AdBuilder = new AdRequest.Builder().addTestDevice(AdRequest.DEVICE_ID_EMULATOR);
         }
-        AdMobAdapterExtras extras = new AdMobAdapterExtras();
+        else
+        	AdBuilder = new AdRequest.Builder();
+        
         Iterator<String> extrasIterator = inputExtras.keys();
         boolean inputValid = true;
+        Bundle bundle = new Bundle();
         while (extrasIterator.hasNext()) {
           String key = extrasIterator.next();
           try {
-            extras.addExtra(key, inputExtras.get(key));
+        	  bundle.putString(key, (String)inputExtras.get(key));
           } catch (JSONException exception) {
             Log.w(LOGTAG, String.format("Caught JSON Exception: %s", exception.getMessage()));
             result = new PluginResult(Status.JSON_EXCEPTION, "Error grabbing extras");
@@ -298,9 +313,10 @@ public class AdMob extends CordovaPlugin {
           }
         }
         if (inputValid) {
-          extras.addExtra("cordova", 1);
-          request.setNetworkExtras(extras);
-          adView.loadAd(request);
+          bundle.putString("cordova", "1");
+          AdMobExtras extras = new AdMobExtras(bundle);
+          AdBuilder.addNetworkExtras(extras);
+          adView.loadAd(AdBuilder.build());
           result = new PluginResult(Status.OK);
         }
       }
@@ -337,45 +353,6 @@ public class AdMob extends CordovaPlugin {
     }
   }
 
-  /**
-   * This class implements the AdMob ad listener events.  It forwards the events
-   * to the JavaScript layer.  To listen for these events, use:
-   *
-   * document.addEventListener('onReceiveAd', function());
-   * document.addEventListener('onFailedToReceiveAd', function(data));
-   * document.addEventListener('onPresentAd', function());
-   * document.addEventListener('onDismissAd', function());
-   * document.addEventListener('onLeaveToAd', function());
-   */
-  private class BannerListener implements AdListener {
-    @Override
-    public void onReceiveAd(Ad ad) {
-      webView.loadUrl("javascript:cordova.fireDocumentEvent('onReceiveAd');");
-    }
-
-    @Override
-    public void onFailedToReceiveAd(Ad ad, ErrorCode errorCode) {
-      webView.loadUrl(String.format(
-          "javascript:cordova.fireDocumentEvent('onFailedToReceiveAd', { 'error': '%s' });",
-          errorCode));
-    }
-
-    @Override
-    public void onPresentScreen(Ad ad) {
-      webView.loadUrl("javascript:cordova.fireDocumentEvent('onPresentAd');");
-    }
-
-    @Override
-    public void onDismissScreen(Ad ad) {
-      webView.loadUrl("javascript:cordova.fireDocumentEvent('onDismissScreen');");
-    }
-
-    @Override
-    public void onLeaveApplication(Ad ad) {
-      webView.loadUrl("javascript:cordova.fireDocumentEvent('onLeaveToAd');");
-    }
-  }
-
   @Override
   public void onDestroy() {
     if (adView != null) {
@@ -383,7 +360,7 @@ public class AdMob extends CordovaPlugin {
     }
     super.onDestroy();
   }
-
+  
   /**
    * Gets an AdSize object from the string size passed in from JavaScript.
    * Returns null if an improper string is provided.
@@ -394,12 +371,8 @@ public class AdMob extends CordovaPlugin {
   public static AdSize adSizeFromSize(String size) {
     if ("BANNER".equals(size)) {
       return AdSize.BANNER;
-    } else if ("IAB_MRECT".equals(size)) {
-      return AdSize.IAB_MRECT;
-    } else if ("IAB_BANNER".equals(size)) {
-      return AdSize.IAB_BANNER;
-    } else if ("IAB_LEADERBOARD".equals(size)) {
-      return AdSize.IAB_LEADERBOARD;
+    } else if ("LEADERBOARD".equals(size)) {
+      return AdSize.LEADERBOARD;
     } else if ("SMART_BANNER".equals(size)) {
       return AdSize.SMART_BANNER;
     } else {
@@ -407,4 +380,3 @@ public class AdMob extends CordovaPlugin {
     }
   }
 }
-
