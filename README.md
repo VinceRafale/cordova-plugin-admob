@@ -2,9 +2,8 @@ cordova-plugin-admob
 ---------------------------
 This is the AdMob Cordova Plugin for Android and iOS. It provides a way to request AdMob ads natively from JavaScript. 
 
-This plugin was written and tested with the Google AdMob SDK version 6.4.0 for iOS, and Cordova 2.5.0.
+This plugin was written and tested to be used with Google Play Services
 
-Now, it's port to Cordova 3.0.0, and tested pass.
 
 How to use?
 ---------------------------
@@ -12,6 +11,4 @@ To install this plugin, follow the [Command-line Interface Guide](http://cordova
 
 It's recommended to use cordova command line tool: 
 
-cordova plugin add https://github.com/floatinghotpot/cordova-plugin-admob.git
-
-Check the README.md in sub folder for details.
+cordova plugin add https://github.com/VinceRafale/cordova-plugin-admob.git
